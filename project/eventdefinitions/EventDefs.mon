@@ -1,0 +1,45 @@
+/**
+ * Example input event from a thin-edge device.
+ */
+event CO2 {
+	float co2;
+	constant string SUBSCRIBE_CHANNEL := "mqtt:sensors/co2";
+	//see: https://thin-edge.github.io/thin-edge.io/html/tutorials/raise-alarm.html
+	//tedge/alarms/<severity>/<alarm-type>
+ //   constant string SEND_CHANNEL := "mqtt:tedge/alarms/critical/co2_high";
+
+}
+
+/**
+ * Example input event from a thin-edge device.
+ */
+event Temperature {
+	float temperature;
+	constant string SUBSCRIBE_CHANNEL := "mqtt:sensors/temperature";
+   // constant string SEND_CHANNEL := "mqtt:alarms/critical/temperature_high";
+}
+
+/**
+ * Example input event from a thin-edge device.
+ */
+event Humidity {
+	float humidity;
+	constant string SUBSCRIBE_CHANNEL := "mqtt:sensors/humidity";
+   // constant string SEND_CHANNEL := "mqtt:alerts/critical/humidity";
+}
+
+/**
+ * Example output event from Apama -> thin-edge.io -> cloud.
+ */
+event CombinedMeasurement {
+	float co2;
+	float temperature;
+	float humidity;
+    //constant string SEND_CHANNEL := "mqtt:alerts/combined";
+}
+
+// src: https://github.com/thin-edge/thin-edge.io_examples/blob/main/StreamingAnalytics/LowLatencyCommandAndControl/project/eventdefinition/LowLatencyEventDefinition.mon
+/*event ShutDown {
+    string shutdownMessage;
+    constant string SEND_CHANNEL := "mqtt:device/operations";
+}*/

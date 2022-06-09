@@ -1,0 +1,84 @@
+using com.apama.aggregates.mean;
+//using com.softwareag.connectivity.httpclient.Request;
+//using com.softwareag.connectivity.httpclient.Response;
+//using com.softwareag.connectivity.httpclient.HttpTransport;
+using com.apama.json.JSONPlugin;
+
+/**
+* This monitor collates CO2, temperature and humidity measurements, averages them and sends the average of the last 300 seconds
+* to MQTT every 300 seconds.
+*/
+monitor OfficeMonitor {
+	constant float AVG_WINDOW := 300.0; //300 s
+	constant float THRESHOLD_TEMPERATURE := 25.0;
+	  
+	constant float THRESHOLD_MIN_CO2 := 350.0; // healthy air level
+	constant float THRESHOLD_MEDIUM_CO2 := 600.0; // healthy office climate
+	constant float THRESHOLD_HIGH_CO2 := 800.0; // acceptable co2 level
+	constant float THRESHOLD_RISK_CO2 := 1200.0; // ventilation urgent
+	
+	float avgCO2 := float.NAN;
+	float avgTemp := float.NAN;
+	float avgHumid := float.NAN;
+	
+	action onload() {
+		log "Loaded monitor OfficeMonitor" at INFO;
+		monitor.subscribe(CO2.SUBSCRIBE_CHANNEL);
+	    monitor.subscribe(Temperature.SUBSCRIBE_CHANNEL);
+	    monitor.subscribe(Humidity.SUBSCRIBE_CHANNEL);
+	    
+	    // Collect sensor measurements and keep the average of the last 300
+        // seconds. If there are no measurements for more than 60 seconds
+        // then the value is set to NaN.
+        from c in all CO2() within AVG_WINDOW
+            select mean(c.co2) : avgCO2 { 
+    		log "Took mean of CO2 value" at INFO;
+        }
+        from t in all Temperature() within AVG_WINDOW
+            select mean(t.temperature) : avgTemp {log "Took mean of temperature value" at INFO; }
+        from h in all Humidity() within AVG_WINDOW
+            select mean(h.humidity) : avgHumid {log "Took mean of humidity value" at INFO; }
+	    
+        // Every 5 seconds send out the averaged measurements as a combined
+        // measurements event. Will only send if there has been at least one
+        // measurement of each type in the last 5 seconds.
+        on all wait(AVG_WINDOW) {
+            if (avgCO2.isFinite()
+                    and avgTemp.isFinite()
+                    and avgHumid.isFinite()
+            		) {
+            	// Acceptable office temperature is exceeded. Sending alert
+            	if(avgTemp > THRESHOLD_TEMPERATURE){
+                    log "Average temperature " + avgTemp.toString() + " Celsius" + " exceeded tolerable office temperature " + THRESHOLD_TEMPERATURE.toString() + " Celsius" + " ." + "Sending alert and requesting shutdown ." at WARN;
+                    //send ShutDown("Device temperature is over the threshold value. Shutdown the device now.") to ShutDown.SEND_CHANNEL;
+                    // send alert 
+                    //send Temperature(avgTemp) to Temperature.SEND_CHANNEL;
+            	}
+            	//  Acceptable office CO2 level is exceeded. Sending alert
+            	if(avgCO2 >= THRESHOLD_HIGH_CO2){
+            		  log "Average CO2 " + avgCO2.toString() + " ppm" + " exceeded acceptable CO2 " + THRESHOLD_HIGH_CO2.toString() + " ppm" + " ." + " Ventilate office now! "+ "Sending alert and requesting shutdown ." at WARN;
+                      //send ShutDown("CO2 level exceeded acceptable office air level. Shutdown the device now.") to ShutDown.SEND_CHANNEL;
+                      // send alert 
+                      //send CO2(avgCO2) to CO2.SEND_CHANNEL;
+                      
+            	}
+            	// Healthy office climate. Logging
+            	if(avgCO2 >= THRESHOLD_MIN_CO2 and avgCO2 <= THRESHOLD_MEDIUM_CO2){
+                    log "Average CO2 " + avgCO2.toString() + " ppm" + " is a healthy office climate " at INFO;
+            	}
+            	
+            	// TODO: check of dit juiste plaats staat
+                CombinedMeasurement m := CombinedMeasurement(
+                      avgCO2, avgTemp, avgHumid
+                    );	             
+                log "Sending " + m.toString()
+                    + " to mqtt:tedge/measurements" at INFO;
+                send m to "mqtt:tedge/measurements";            	
+            }
+        }
+
+		// Required so that the application can receive events from connectivity
+		// plugins (MQTT in this case). See Apama documentation for more details.
+        com.softwareag.connectivity.ConnectivityPlugins.onApplicationInitialized();
+	}
+}
